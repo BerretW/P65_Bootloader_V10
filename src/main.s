@@ -17,6 +17,8 @@ ACIA_STATUS_RX_FULL    = 1 << 3
 ; RAM DISK / APP location definitions
 RAMDISK = $6000
 RAMDISK_END = $7FFF
+
+RAMDISK_NMI_VECTOR = $7FFA
 RAMDISK_RESET_VECTOR = $7FFC
 RAMDISK_IRQ_VECTOR = $7FFE
 
@@ -78,7 +80,7 @@ tmpstack:       .res 1
 ; RODATA (STRINGS)
 ;==============================================================================
                 .segment "RODATA"
-msg_0:          .byte "APPARTUS P65 Bootloader V10 HW 10-2-1", $00
+msg_0:          .byte "APPARTUS P65 Bootloader V10.0.1 HW 10-2-1", $00
 msg_1:          .byte "Cekam na data", $00
 msg_2:          .byte "Pro napovedu stiskni H Prikazy posilej bez CR LF.", $00
 msg_3:          .byte "w = kazdy nasledujici byte zapise do pameti na pozici $6000 - $7FFF. Po prijeti vsech bytu se novy program spusti z pameti.", $00
@@ -95,18 +97,45 @@ msg_10:         .byte "2000.200F vypise HEX hodnoty z adres $2000-$200F", $00
 ;==============================================================================
                 .segment "CODE"
 
-                .import _EWOZ  ; Import the entry point for the Woz Monitor
+                .import _EWOZ
 
-reset:          SEI         ; <--- PŘIDÁNO: Zakázat přerušení okamžitě po resetu
+reset:          SEI         ; Zakázat přerušení okamžitě
                 LDX #$FF    ; Inicializace Stack Pointeru
                 TXS
                 JMP main
-nmi:            RTI
-irq:            RTI
 
-main:
-                JSR _acia_init
-                JMP _bootloader_
+;--------------------------------------------------
+; NMI Handler (s kontrolou RAM vektoru)
+;--------------------------------------------------
+nmi:            
+                ; Zkontroluj, zda je RAM vektor platný (není $0000)
+                LDA RAMDISK_NMI_VECTOR      ; Načti nízký byte adresy
+                ORA RAMDISK_NMI_VECTOR + 1  ; Zkombinuj s vysokým bytem
+                BEQ nmi_exit                ; Pokud je výsledek 0, adresa je $0000 -> ignoruj
+
+                ; Vektor je platný, předej řízení programu v RAM
+                JMP (RAMDISK_NMI_VECTOR)
+
+nmi_exit:       RTI                         ; Vrať se, pokud je vektor neplatný
+
+;--------------------------------------------------
+; IRQ Handler (s kontrolou RAM vektoru)
+;--------------------------------------------------
+irq:
+                ; Zkontroluj, zda je RAM vektor platný (není $0000)
+                LDA RAMDISK_IRQ_VECTOR      ; Načti nízký byte adresy
+                ORA RAMDISK_IRQ_VECTOR + 1  ; Zkombinuj s vysokým bytem
+                BEQ irq_exit                ; Pokud je výsledek 0, adresa je $0000 -> ignoruj
+
+                ; Vektor je platný, předej řízení programu v RAM
+                JMP (RAMDISK_IRQ_VECTOR)
+
+irq_exit:       RTI                         ; Vrať se, pokud je vektor neplatný
+
+
+main:			
+				JSR _acia_init
+				JMP _bootloader_
 
 ;------------------------------------------------------------------------------
 ; ACIA Routines (from acia.asm)
