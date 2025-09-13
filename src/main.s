@@ -98,8 +98,8 @@ msg_10:         .byte "2000.200F vypise HEX hodnoty z adres $2000-$200F", $00
                 .import _EWOZ  ; Import the entry point for the Woz Monitor
 
 reset:          SEI         ; <--- PŘIDÁNO: Zakázat přerušení okamžitě po resetu
-                ; LDX #$FF    ; Inicializace Stack Pointeru
-                ; TXS
+                LDX #$FF    ; Inicializace Stack Pointeru
+                TXS
                 JMP main
 nmi:            RTI
 irq:            RTI
